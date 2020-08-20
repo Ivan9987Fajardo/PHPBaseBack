@@ -4,6 +4,8 @@ use CodeIgniter\RESTful\ResourceController;
 
 class Auth extends ResourceController
 {
+    private $oldHash;
+    private $newHash;
     public function __construct() {
         helper('encryption');
         
@@ -12,31 +14,52 @@ class Auth extends ResourceController
 
     public function Login()
 	{
-        $data = (array)$this->request->getJson();
         helper('authentication');
-        
-        $data = decryptData($data,true);
-        if(!isset($data['data'])) return $this->fail($data);
-        print_r($data['data']);
-        $userId = isset($data['data']->userId)?$data['data']->userId:'';
-        $password = isset($data['data']->password)?$data['data']->password:'';
-        
-        $userPassword = verifyUserGetPassword($userId,$password);
-        if(!$userPassword) {
+        $data = $this->receiveData();
+        if(!is_object($this->receiveData())) return $this -> fail();
+
+        $userId = isset($data->userId)?$data->userId:'';
+        $password = isset($data->password)?$data->password:'';
+        $user = verifyUserGetPassword($userId,$password);
+        if(!$user) {
             return $this -> failUnauthorized();
         }
-        if(!verifyPassword($password,$userPassword)) {
-            // print_r('Nice');
+        if(!verifyPassword($password,$user->Password)) {
             return $this -> failUnauthorized();
         }
         
-        $returnData = [
-            'newHash' => $data['newHash']
+        generateNewUserTicket($userId);
+        $data = [
+                'name' => $user->Name
         ];
-        // print_r($returnData);exit();
-        // return $returnData;
-        $this->respond($returnData,200,'NICE');
+       
+        return $this->sendData(200,$data);
 		
+    }
+
+
+    private function sendData($status_code, $data, $message=''){
+        $data = (object)[
+            'newHash' => $this->newHash,
+            'data' => $data
+        ];
+        $send = [
+            'data' => encryptData($data, $this->oldHash)
+        ];
+
+        return $this->respond($send,$status_code,$message);
+    }
+
+    private function receiveData(){
+        $data = (array)$this->request->getJson();
+        $data = decryptData($data,true);
+        if(!isset($data['data'])) {
+            return $this->fail($data);
+        }
+        $this->newHash = $data['newHash'];
+        $this->oldHash = $data['oldHash'];
+        $data = json_decode($data['data']);
+        return $data;
     }
 
 
