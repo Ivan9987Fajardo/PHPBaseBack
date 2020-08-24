@@ -34,6 +34,7 @@ $routes->get('/', 'Home::index');
 $routes->options('(:any)', 'Home::options');
 // $routes->post('(:any)', 'Home::options');
 $routes->post('/auth/login', 'Auth::Login');
+$routes->get('/items', 'Inventory::getInventory');
 
 /**
  * --------------------------------------------------------------------

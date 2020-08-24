@@ -18,6 +18,38 @@
         ];
     }
 
+    function sendData($instance, $status_code, $data, $message=''){
+        $data = (object)[
+            'newHash' => $instance->newHash,
+            'data' => $data
+        ];
+        $send = [
+            'data' => encryptData($data, $instance->oldHash)
+        ];
+        return $instance->respond($send,$status_code,$message);
+    }
+    
+    function accessProtected($obj, $prop) {
+        $reflection = new ReflectionClass($obj);
+        $property = $reflection->getProperty($prop);
+        $property->setAccessible(true);
+        return $property->getValue($obj);
+      }
+
+    function receiveData($instance,$isInitial=false,$generateKey=true){
+        $data = (array)accessProtected($instance,'request')->getJson();
+        if(!$data)$data = (array)accessProtected($instance,'request')->getVar();
+        $data = decryptData($data,$isInitial,$generateKey);
+        
+        if(!isset($data['data'])) {
+            return $data;
+        }
+        $instance->newHash = $data['newHash'];
+        $instance->oldHash = $data['oldHash'];
+        $data = json_decode($data['data']);
+        return $data;
+    }
+
     function generateHashKey(){
         $key = password_hash(bin2hex(random_bytes(128)),PASSWORD_DEFAULT);
         return $key;
@@ -43,7 +75,7 @@
     }
 
 
-    function decryptData($data,$isInitial = false){
+    function decryptData($data,$isInitial = false,$generateKey=true){
         helper('databaseEncrypt');
         $initialPass = getInitialPass();
         $user = CryptoJSAesDecrypt($initialPass,key($data));
@@ -57,9 +89,13 @@
         $eData = CryptoJSAesDecrypt($result->Hash,$data[key($data)]);
         if(!$eData) return 'Invalid Hash';
         $newHashKey = generateHashKey();
-        if(!$isInitial){
+        if(!$isInitial && $generateKey){
             updateUser($user,$newHashKey);
-        } 
+        }else if (!$isInitial && !$generateKey){
+            $newHashKey = $result->Hash;
+        } else {
+            $newHashKey = generateNewUserTicket($user);
+        }
         $returnData = [
             'data' => $eData,
             'newHash' => $newHashKey,
@@ -94,6 +130,7 @@
     }
 
     function CryptoJSAesDecrypt($passphrase, $encrypted){
+        $encrypted = hex2bin($encrypted);
         $encrypted = base64_decode($encrypted);
         // $salt = '54d6a051b83ac21f366091ba3cf8f015567da6144f8edbf6b8797b1e65758abec73a3c5b31d393a1695d032868c91417b54695e59b7f6462c68d14d5bbcf5b49a24f08e83e86c35c885aa1cc0ccc31f700f1ace15e9ad53a277157fb937ba46935bf1596f19e01fe2f642dfc873e8c154d43ee47fb2e270684641ca75b4566a8fb839170b0a21655d37b93eafc195e0fa57425fe19847cb5a1a4540a9b7704b4974604f36ef219e4a7f647d3b595301fe1de7b2e60c39939fba7f58721bf003f5bc189ac01fae764246b56447fcbfeec4232fe3eebf75c83bf8957e29e8d1b02efd4261659b8b80f260df44bbc99dab120a1a1a6f5a3a0393bd3f569b1f1e4db';
         // $iv = '5e7123e19a07a334a99524ef5785f315';

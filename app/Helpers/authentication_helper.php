@@ -10,7 +10,7 @@
 
     function verifyUserGetPassword($userId, $password){
         $db = db_connect();
-        $query = "SELECT Name,Password FROM Users WHERE UserId = ?";
+        $query = "SELECT UserId,Name,Password FROM Users WHERE UserId = ?";
         $resultSet = $db->query($query,$userId);
         $result = $resultSet->getResult();
         if(!count($result)) return false;
